@@ -1,0 +1,142 @@
+# ============================================================
+# DAEMONSET WITH NODE SELECTOR - Run on Specific Nodes
+# ============================================================
+#
+# 📚 USE CASE:
+# Run on only SOME nodes (e.g., only GPU nodes, only prod nodes)
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: DaemonSet
+
+metadata:
+  name: gpu-monitor
+  labels:
+    app: gpu-monitor
+
+spec:
+  selector:
+    matchLabels:
+      app: gpu-monitor
+
+  template:
+    metadata:
+      labels:
+        app: gpu-monitor
+    
+    spec:
+      # ============================================================
+      # NODE SELECTOR - Only run on nodes with this label
+      # ============================================================
+      nodeSelector:
+        node-type: gpu                # 👈 Only nodes with label node-type=gpu
+                                       #
+                                       # To add label to a node:
+                                       # kubectl label node <node-name> node-type=gpu
+
+      containers:
+        - name: monitor
+          image: busybox
+          command: ["sh", "-c", "echo 'Monitoring GPU on $NODE_NAME'; sleep infinity"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+
+---
+# ============================================================
+# DAEMONSET WITH TOLERATIONS - Run on Tainted Nodes
+# ============================================================
+#
+# 📚 TAINTS & TOLERATIONS:
+#
+# Taint = "Don't schedule pods here unless they tolerate it"
+# Toleration = "I can handle this taint, schedule me"
+#
+# Master/control plane nodes are tainted by default.
+# To run DaemonSet on ALL nodes including masters, add tolerations.
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: DaemonSet
+
+metadata:
+  name: all-nodes-logger
+  labels:
+    app: all-nodes-logger
+
+spec:
+  selector:
+    matchLabels:
+      app: all-nodes-logger
+
+  template:
+    metadata:
+      labels:
+        app: all-nodes-logger
+    
+    spec:
+      # ============================================================
+      # TOLERATIONS - Allow scheduling on tainted nodes
+      # ============================================================
+      tolerations:
+        # Tolerate control plane taint
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+        # Tolerate master taint (older K8s versions)
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+
+        # Tolerate all taints (use with caution!)
+        # - operator: Exists
+
+      containers:
+        - name: logger
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running on ALL nodes including control plane"
+              echo "Node: $NODE_NAME"
+              sleep infinity
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+
+# ============================================================
+# 📚 COMMON TAINTS:
+# ============================================================
+#
+# Control Plane:
+#   node-role.kubernetes.io/control-plane:NoSchedule
+#
+# Not Ready:
+#   node.kubernetes.io/not-ready:NoSchedule
+#
+# Unreachable:
+#   node.kubernetes.io/unreachable:NoSchedule
+#
+# Memory Pressure:
+#   node.kubernetes.io/memory-pressure:NoSchedule
+#
+# Custom:
+#   kubectl taint nodes <node> key=value:NoSchedule
+#
+# ============================================================

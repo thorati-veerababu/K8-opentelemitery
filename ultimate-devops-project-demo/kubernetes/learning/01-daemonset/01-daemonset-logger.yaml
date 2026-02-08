@@ -1,0 +1,127 @@
+# ============================================================
+# DAEMONSET - Simple Node Logger
+# ============================================================
+#
+# 📚 WHAT THIS DOES:
+# Creates a pod on EVERY node that logs node information.
+# This simulates a log collection agent like Fluentd.
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: DaemonSet                       # 👈 Not Deployment!
+
+metadata:
+  name: node-logger
+  labels:
+    app: node-logger
+    purpose: learning
+
+spec:
+  # ============================================================
+  # SELECTOR - Must match template labels
+  # ============================================================
+  selector:
+    matchLabels:
+      app: node-logger                # 👈 Must match template.metadata.labels
+
+  # ============================================================
+  # POD TEMPLATE
+  # ============================================================
+  template:
+    metadata:
+      labels:
+        app: node-logger              # 👈 Must match selector.matchLabels
+    
+    spec:
+      containers:
+        - name: logger
+          image: busybox:1.36
+          
+          # ============================================================
+          # COMMAND - Log node info every 30 seconds
+          # ============================================================
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "=== Node Logger Started ==="
+              echo "Node: $NODE_NAME"
+              echo "Pod: $POD_NAME"
+              echo ""
+              while true; do
+                echo "[$(date)] Logging from node: $NODE_NAME"
+                echo "  - Pod IP: $POD_IP"
+                echo "  - Uptime: $(cat /proc/uptime | cut -d' ' -f1)s"
+                echo "  - Memory: $(cat /proc/meminfo | grep MemAvailable)"
+                echo ""
+                sleep 30
+              done
+
+          # ============================================================
+          # ENVIRONMENT VARIABLES - Expose node/pod info
+          # ============================================================
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName    # 👈 Injects node name
+
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name    # 👈 Injects pod name
+
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP     # 👈 Injects pod IP
+
+          # ============================================================
+          # RESOURCES - Keep it lightweight
+          # ============================================================
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+      # ============================================================
+      # TERMINATION - Quick shutdown
+      # ============================================================
+      terminationGracePeriodSeconds: 10
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply:
+#    kubectl apply -f 01-daemonset-logger.yaml
+#
+# 2. Check DaemonSet status:
+#    kubectl get daemonset node-logger
+#    (DESIRED = number of nodes, CURRENT = pods created)
+#
+# 3. See pods on each node:
+#    kubectl get pods -l app=node-logger -o wide
+#
+# 4. Check logs from any pod:
+#    kubectl logs -l app=node-logger --tail=10
+#
+# 5. Scale test - add a node and watch:
+#    (After adding a new node to cluster)
+#    kubectl get pods -l app=node-logger -o wide -w
+#
+# ============================================================
+#
+# 📊 DAEMONSET vs DEPLOYMENT:
+#
+# Deployment:
+#   replicas: 3  → 3 pods, placed wherever scheduler decides
+#
+# DaemonSet:
+#   (no replicas) → 1 pod per node, ALWAYS
+#
+# ============================================================

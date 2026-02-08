@@ -1,0 +1,59 @@
+# ============================================================
+# PARALLEL JOB - Work Queue Simulation
+# ============================================================
+#
+# 📚 USAGE:
+# Run multiple pods to process a large task faster.
+#
+# completions: 5  -> Total successes needed
+# parallelism: 2  -> How many to run at same time
+#
+# ============================================================
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: image-processor
+  labels:
+    app: processor
+
+spec:
+  # ============================================================
+  # PARALLELISM CONFIG
+  # ============================================================
+  completions: 10                  # 👈 Run until 10 pods succeed
+  parallelism: 3                   # 👈 Run 3 pods at a time
+                                    #    (3 running -> 3 succeed -> 3 more...)
+
+  template:
+    spec:
+      containers:
+        - name: processor
+          image: busybox
+          
+          # Simulate work (sleep 5-15 seconds)
+          command:
+            - /bin/sh
+            - -c
+            - |
+              TIME=$((5 + RANDOM % 10))
+              echo "Processing image batch... taking $TIME seconds"
+              sleep $TIME
+              echo "Batch complete!"
+          
+      restartPolicy: OnFailure
+
+# ============================================================
+# 🧪 VISUALIZATION:
+# ============================================================
+#
+# When you apply this, watch the pods:
+# kubectl get pods -l job-name=image-processor -w
+#
+# You will see:
+# 1. 3 pods start (Running)
+# 2. One finishes -> New one starts immediately
+# 3. Keeps exactly 3 running until 10 total are done
+#
+# ============================================================

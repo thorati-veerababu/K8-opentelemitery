@@ -1,0 +1,32 @@
+# ============================================================
+# CONFIGMAP - Creating Configuration Data
+# ============================================================
+#
+# 📚 USAGE:
+# Used for NON-SENSITIVE configuration.
+#
+# Key 1: "player_initial_lives" -> Simple value (for Env Var)
+# Key 2: "game.properties"      -> File content (for Volume Mount)
+#
+# ============================================================
+
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: game-config
+  labels:
+    app: game-demo
+
+data:
+  # ---- Simple values (Key-Value) ----
+  player_initial_lives: "3"
+  ui_properties_file_name: "user-interface.properties"
+
+  # ---- File content (Multi-line string) ----
+  game.properties: |
+    enemy.types=aliens,monsters
+    player.maximum-lives=5
+    secret.code.lives=30
+    user.interface.color=blue
+    volume=50

@@ -1,0 +1,65 @@
+# ============================================================
+# SIMPLE JOB - Run Once to Completion
+# ============================================================
+#
+# 📚 KEY CONCEPTS:
+#
+# 1. restartPolicy: Never or OnFailure
+#    - Jobs MUST terminate, so "Always" is not allowed.
+# 2. backoffLimit: 4
+#    - Number of retries if the pod fails before marking Job as failed.
+#
+# ============================================================
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: pi-calculator
+  labels:
+    app: pi
+
+spec:
+  # ============================================================
+  # RETRY CONFIGURATION
+  # ============================================================
+  backoffLimit: 4                  # 👈 If it fails 4 times, stop trying
+  
+  # ttlSecondsAfterFinished: 100   # 👈 Auto-delete job 100s after completion
+                                   #    (Useful to keep cluster clean!)
+
+  # ============================================================
+  # POD TEMPLATE
+  # ============================================================
+  template:
+    spec:
+      containers:
+        - name: pi
+          image: perl:5.34.0
+          
+          # Calculate Pi to 2000 places using Perl
+          command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+          
+      # ============================================================
+      # RESTART POLICY - Crucial for Jobs!
+      # ============================================================
+      restartPolicy: Never         # 👈 If pod fails, create a NEW one
+                                    #    Alternative: OnFailure (restart SAME pod)
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Create the job:
+#    kubectl apply -f 01-simple-job.yaml
+#
+# 2. Check status (COMPLETIONS should go 0/1 -> 1/1):
+#    kubectl get job pi-calculator -w
+#
+# 3. See the results:
+#    kubectl logs job/pi-calculator
+#
+# 4. Cleanup:
+#    kubectl delete job pi-calculator
+#
+# ============================================================

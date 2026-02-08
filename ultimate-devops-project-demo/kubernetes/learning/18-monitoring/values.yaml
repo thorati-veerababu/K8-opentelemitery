@@ -1,0 +1,80 @@
+# Project-Grade Configuration for kube-prometheus-stack
+# Includes Persistence, Retention, and Resource Limits
+
+grafana:
+  adminPassword: "admin" # Change this in production!
+  
+  # Configure Subpath for Gateway API
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana"
+      serve_from_sub_path: true
+
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: true
+    storageClassName: gp2
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  
+    size: 5Gi
+    
+  sidecar:
+    datasources:
+      defaultDatasourceEnabled: true
+
+prometheus:
+  prometheusSpec:
+    # Serve from /prometheus
+    externalUrl: "/prometheus"
+    routePrefix: "/prometheus"
+
+    # Retention: Keep data for 10 days (Project Requirement)
+    retention: 10d
+    
+    # Persistent Storage for Metrics
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # Resource Limits (Project Sizing)
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 500m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+    # Scrape OpenTelemetry Collector
+    additionalScrapeConfigs:
+      - job_name: 'otel-collector'
+        scrape_interval: 10s
+        static_configs:
+          - targets: ['otel-collector.opentelimetry.svc.cluster.local:8889']
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        memory: 100Mi
+      limits:
+        memory: 200Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+nodeExporter:
+  enabled: true

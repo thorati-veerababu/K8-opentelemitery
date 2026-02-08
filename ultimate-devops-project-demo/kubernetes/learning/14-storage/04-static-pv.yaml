@@ -1,0 +1,167 @@
+# ============================================================
+# STATIC PERSISTENT VOLUME - Manual Volume Creation
+# ============================================================
+#
+# 📚 STATIC vs DYNAMIC PROVISIONING
+# ---------------------------------
+# 
+# DYNAMIC (Recommended):
+#   PVC → StorageClass → CSI Driver creates volume → PV auto-created
+#   ✅ Automatic, less work
+#   ✅ Used files 01, 02, 03 in this module
+#
+# STATIC (This file):
+#   Admin manually creates PV → PVC binds to existing PV
+#   ✅ Use when: You have pre-existing volumes
+#   ✅ Use when: Need very specific volume configuration
+#   ⚠️ More manual work
+#
+# ============================================================
+#
+# 🔄 STATIC PROVISIONING FLOW:
+#
+#   1. Admin creates EBS volume in AWS Console (or Terraform)
+#   2. Admin creates PV pointing to that EBS volume
+#   3. Developer creates PVC that matches the PV
+#   4. Kubernetes binds PVC to PV
+#   5. Pod uses PVC
+#
+# ============================================================
+
+apiVersion: v1
+kind: PersistentVolume
+
+metadata:
+  name: my-static-pv               # 👈 Unique name for this PV
+  labels:
+    type: ebs-static
+    environment: learning
+
+spec:
+  # ============================================================
+  # CAPACITY - Total size of this volume
+  # ============================================================
+  capacity:
+    storage: 10Gi                  # 👈 Must match actual EBS volume size
+
+  # ============================================================
+  # VOLUME MODE
+  # ============================================================
+  volumeMode: Filesystem
+
+  # ============================================================
+  # ACCESS MODES
+  # ============================================================
+  accessModes:
+    - ReadWriteOnce                # 👈 EBS = RWO only
+
+  # ============================================================
+  # RECLAIM POLICY
+  # ============================================================
+  persistentVolumeReclaimPolicy: Retain
+  # 👆 OPTIONS:
+  #    - Retain: Keep volume after PVC deleted (manual cleanup)
+  #    - Delete: Delete volume when PVC deleted
+  #    - Recycle: (Deprecated) Wipe data and reuse
+
+  # ============================================================
+  # STORAGE CLASS - Leave empty for static binding
+  # ============================================================
+  storageClassName: ""             # 👈 Empty = Static provisioning
+                                    #    PVC must also have storageClassName: ""
+
+  # ============================================================
+  # CSI DRIVER - Point to actual EBS volume
+  # ============================================================
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-0abc123def456789   # 👈 YOUR EBS VOLUME ID!
+                                          #    Get from AWS Console:
+                                          #    EC2 → Volumes → Volume ID
+    
+    fsType: ext4
+
+    # ---- Optional: Node affinity (ensure in same AZ) ----
+    # volumeAttributes:
+    #   partition: "0"
+
+  # ============================================================
+  # NODE AFFINITY - Which nodes can access this volume
+  # ============================================================
+  # IMPORTANT: EBS volumes are zone-specific!
+  # The PV can only be used by pods on nodes in the SAME AZ
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - ap-south-1a       # 👈 YOUR AZ! Match your EBS volume's AZ
+                                     #    Check in AWS Console: EC2 → Volumes
+
+---
+# ============================================================
+# PVC FOR STATIC BINDING
+# ============================================================
+# This PVC will bind to the static PV above
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: my-static-claim
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+  
+  storageClassName: ""             # 👈 MUST be empty for static binding
+  
+  resources:
+    requests:
+      storage: 10Gi                # 👈 Must match or be less than PV capacity
+
+  # ============================================================
+  # SELECTOR - Explicitly choose which PV to bind to
+  # ============================================================
+  selector:
+    matchLabels:
+      type: ebs-static             # 👈 Matches PV labels
+
+# ============================================================
+# 📝 WHEN TO USE STATIC PROVISIONING:
+# ============================================================
+#
+# 1. Migrating existing data:
+#    - You have an EBS with data from old system
+#    - Import it into Kubernetes
+#
+# 2. Specific volume requirements:
+#    - Need io2 with specific IOPS
+#    - Pre-warm volume for performance
+#
+# 3. Shared infrastructure:
+#    - Volumes managed by separate team
+#    - Volumes created by Terraform
+#
+# 4. Disaster recovery:
+#    - Restore from EBS snapshot
+#    - Mount restored volume in K8s
+#
+# ============================================================
+# ⚠️ BEFORE APPLYING:
+# ============================================================
+#
+# 1. Create EBS volume in AWS:
+#    $ aws ec2 create-volume \
+#        --size 10 \
+#        --availability-zone ap-south-1a \
+#        --volume-type gp3 \
+#        --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=k8s-static-pv}]'
+#
+# 2. Note the Volume ID (vol-xxx) and update volumeHandle above
+#
+# 3. Make sure volume is in same AZ as your nodes!
+#
+# ============================================================

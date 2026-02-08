@@ -1,0 +1,28 @@
+# ============================================================
+# LOAD GENERATOR
+# ============================================================
+#
+# A simple busybox pod that runs an infinite loop
+# sending HTTP requests to our php-apache service.
+#
+# This will cause CPU spikes on the php-apache pods,
+# triggering the HPA!
+#
+# ============================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: load-generator
+  labels:
+    app: load-generator
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+      # Infinite loop matching curl requests!
+      command: 
+        - /bin/sh
+        - -c
+        - "while true; do wget -q -O- http://php-apache; done"
+  restartPolicy: Never

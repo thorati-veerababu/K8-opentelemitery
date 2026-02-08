@@ -1,0 +1,67 @@
+# ============================================================
+# HEADLESS SERVICE - Required for StatefulSet
+# ============================================================
+#
+# 📚 WHY HEADLESS SERVICE?
+#
+# StatefulSet needs a "Headless Service" to create stable DNS names.
+# 
+# Normal Service:
+#   my-service.default.svc.cluster.local → Load balances to ANY pod
+#
+# Headless Service (clusterIP: None):
+#   web-0.my-service.default.svc.cluster.local → Only pod web-0
+#   web-1.my-service.default.svc.cluster.local → Only pod web-1
+#   web-2.my-service.default.svc.cluster.local → Only pod web-2
+#
+# ============================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: web-headless               # 👈 This name is used in StatefulSet
+  labels:
+    app: web
+
+spec:
+  # ============================================================
+  # HEADLESS = clusterIP: None
+  # ============================================================
+  clusterIP: None                  # 👈 THIS makes it headless!
+                                    #    No load balancer IP
+                                    #    DNS returns pod IPs directly
+
+  # ============================================================
+  # SELECTOR - Which pods this service targets
+  # ============================================================
+  selector:
+    app: web                       # 👈 Must match StatefulSet pod labels
+
+  # ============================================================
+  # PORTS
+  # ============================================================
+  ports:
+    - port: 80
+      name: http
+
+# ============================================================
+# 📊 DNS NAMES CREATED:
+# ============================================================
+#
+# For StatefulSet named "web" with 3 replicas:
+#
+# Pod DNS names:
+#   web-0.web-headless.default.svc.cluster.local
+#   web-1.web-headless.default.svc.cluster.local
+#   web-2.web-headless.default.svc.cluster.local
+#
+# These DNS names are STABLE - they always point to the same pod!
+#
+# ============================================================
+#
+# 🔍 TEST DNS:
+#
+# kubectl run -it --rm dns-test --image=busybox -- nslookup web-headless
+#
+# ============================================================

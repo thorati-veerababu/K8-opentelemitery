@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-exec
+  labels:
+    test: liveness
+spec:
+  containers:
+  - name: liveness
+    image: k8s.gcr.io/busybox
+    args:
+    - /bin/sh
+    - -c
+    - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/healthy
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    # The pod starts, creates /tmp/healthy.
+    # After 30s, it deletes the file.
+    # The probe fails, and K8s restarts the container.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: readiness-http
+  labels:
+    test: readiness
+spec:
+  containers:
+  - name: readiness
+    image: nginx
+    ports:
+    - containerPort: 80
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    # This pod is ready as long as Nginx returns 200 OK on /.

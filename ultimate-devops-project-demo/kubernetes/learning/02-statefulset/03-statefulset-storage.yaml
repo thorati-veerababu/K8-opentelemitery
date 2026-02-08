@@ -1,0 +1,176 @@
+# ============================================================
+# STATEFULSET WITH PERSISTENT STORAGE
+# ============================================================
+#
+# 📚 VOLUMECLAIMTEMPLATES:
+#
+# This is the KILLER FEATURE of StatefulSets!
+# Each pod automatically gets its OWN PersistentVolumeClaim.
+#
+# ┌─────────────────────────────────────────────────────────────┐
+# │                                                              │
+# │  StatefulSet: mysql (replicas: 3)                           │
+# │                                                              │
+# │  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
+# │  │ mysql-0  │    │ mysql-1  │    │ mysql-2  │              │
+# │  └────┬─────┘    └────┬─────┘    └────┬─────┘              │
+# │       │               │               │                     │
+# │       ▼               ▼               ▼                     │
+# │  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
+# │  │ PVC      │    │ PVC      │    │ PVC      │              │
+# │  │ data-    │    │ data-    │    │ data-    │              │
+# │  │ mysql-0  │    │ mysql-1  │    │ mysql-2  │              │
+# │  └──────────┘    └──────────┘    └──────────┘              │
+# │       │               │               │                     │
+# │       ▼               ▼               ▼                     │
+# │  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
+# │  │ EBS Vol  │    │ EBS Vol  │    │ EBS Vol  │              │
+# │  │ 10Gi     │    │ 10Gi     │    │ 10Gi     │              │
+# │  └──────────┘    └──────────┘    └──────────┘              │
+# │                                                              │
+# │  EACH POD HAS ITS OWN ISOLATED STORAGE!                     │
+# │                                                              │
+# └─────────────────────────────────────────────────────────────┘
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: StatefulSet
+
+metadata:
+  name: mysql
+  labels:
+    app: mysql
+
+spec:
+  serviceName: "mysql-headless"
+  replicas: 2                      # 👈 Start with 2 to save resources
+
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+    
+    spec:
+      containers:
+        - name: mysql
+          image: busybox           # 👈 Using busybox to simulate (saves memory)
+          
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "=== MySQL Simulation on $(hostname) ==="
+              echo "Data directory: /var/lib/mysql"
+              echo "Pod: $(hostname)" >> /var/lib/mysql/pod-info.txt
+              echo "Started: $(date)" >> /var/lib/mysql/pod-info.txt
+              echo ""
+              echo "Checking persistent data..."
+              cat /var/lib/mysql/pod-info.txt
+              echo ""
+              echo "Sleeping..."
+              sleep infinity
+
+          # ============================================================
+          # VOLUME MOUNT - Mount PVC at /var/lib/mysql
+          # ============================================================
+          volumeMounts:
+            - name: data                # 👈 Must match volumeClaimTemplates name
+              mountPath: /var/lib/mysql
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+  # ============================================================
+  # VOLUME CLAIM TEMPLATES - Creates PVC per pod!
+  # ============================================================
+  volumeClaimTemplates:
+    - metadata:
+        name: data                     # 👈 PVC name prefix
+                                        #    Creates: data-mysql-0, data-mysql-1, data-mysql-2
+      spec:
+        accessModes:
+          - ReadWriteOnce              # 👈 EBS = RWO
+
+        storageClassName: ebs-sc       # 👈 Use our EBS StorageClass
+
+        resources:
+          requests:
+            storage: 1Gi               # 👈 Small for learning (1Gi each)
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply headless service:
+#    kubectl apply -f 01-headless-service.yaml
+#    (or create mysql-headless service)
+#
+# 2. Apply this StatefulSet:
+#    kubectl apply -f 03-statefulset-storage.yaml
+#
+# 3. Check PVCs created (one per pod!):
+#    kubectl get pvc
+#    (Should see: data-mysql-0, data-mysql-1)
+#
+# 4. Check pods:
+#    kubectl get pods -l app=mysql
+#
+# 5. Check each pod's data:
+#    kubectl exec mysql-0 -- cat /var/lib/mysql/pod-info.txt
+#    kubectl exec mysql-1 -- cat /var/lib/mysql/pod-info.txt
+#
+# 6. Delete a pod (PVC survives!):
+#    kubectl delete pod mysql-0
+#    kubectl get pvc  # Still exists!
+#
+# 7. Pod recreates with SAME data:
+#    kubectl exec mysql-0 -- cat /var/lib/mysql/pod-info.txt
+#    # OLD data still there!
+#
+# ============================================================
+#
+# 📝 PVC NAMING:
+#    {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
+#    data-mysql-0
+#    data-mysql-1
+#    data-mysql-2
+#
+# ============================================================
+#
+# ⚠️ IMPORTANT:
+#    When you delete a StatefulSet, PVCs are NOT deleted!
+#    This is a safety feature to prevent data loss.
+#
+#    To clean up:
+#    kubectl delete statefulset mysql
+#    kubectl delete pvc data-mysql-0 data-mysql-1
+#
+# ============================================================
+
+---
+# ============================================================
+# HEADLESS SERVICE FOR MYSQL
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-headless
+  labels:
+    app: mysql
+spec:
+  clusterIP: None
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      name: mysql

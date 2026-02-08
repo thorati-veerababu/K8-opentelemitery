@@ -1,0 +1,128 @@
+# ============================================================
+# PERSISTENT VOLUME CLAIM (PVC) - Requesting Storage
+# ============================================================
+#
+# 📚 WHAT IS A PVC?
+# -----------------
+# A PVC is a "request" or "claim" for storage.
+# Think of it like ordering food at a restaurant:
+#   - You (Pod) say "I want a medium pizza" (PVC)
+#   - The kitchen (StorageClass) makes it for you
+#   - You get your pizza (PV - actual storage)
+#
+# The Pod never talks directly to storage - it only knows about the PVC.
+# This separation allows:
+#   ✅ Developers: Just request what they need (5Gi, 10Gi)
+#   ✅ Admins: Control HOW storage is actually provisioned
+#
+# 🔄 LIFECYCLE:
+#   1. PVC Created → Status: "Pending"
+#   2. StorageClass provisions volume → PV Created
+#   3. PVC binds to PV → Status: "Bound"
+#   4. Pod can now mount the PVC
+#
+# ============================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: my-ebs-claim              # 👈 Name that pods will reference
+  namespace: default              # 👈 PVCs are namespaced resources
+  labels:
+    app: storage-demo
+    environment: learning
+
+spec:
+  # ============================================================
+  # ACCESS MODES - How the volume can be accessed
+  # ============================================================
+  accessModes:
+    - ReadWriteOnce               # 👈 RWO = One node can mount read-write
+                                   #
+                                   # OPTIONS:
+                                   # - ReadWriteOnce (RWO): One node, read-write
+                                   #   ✅ Use for: Databases, single-pod apps
+                                   #   ⚠️  EBS only supports this!
+                                   #
+                                   # - ReadOnlyMany (ROX): Many nodes, read-only
+                                   #   ✅ Use for: Shared config, static content
+                                   #
+                                   # - ReadWriteMany (RWX): Many nodes, read-write
+                                   #   ✅ Use for: Shared uploads, CMS
+                                   #   ⚠️  Requires EFS, not EBS!
+
+  # ============================================================
+  # STORAGE CLASS - Which template to use
+  # ============================================================
+  storageClassName: ebs-sc        # 👈 References the StorageClass we created
+                                   #    Must match: StorageClass.metadata.name
+                                   #
+                                   # If you set storageClassName: ""
+                                   #   → Kubernetes looks for a pre-existing PV
+                                   #   → No dynamic provisioning (static binding)
+
+  # ============================================================
+  # RESOURCES - How much storage to request
+  # ============================================================
+  resources:
+    requests:
+      storage: 5Gi                # 👈 Request 5 Gibibytes
+                                   #    Min for EBS: 1Gi
+                                   #    Sizes: Ki, Mi, Gi, Ti (binary)
+                                   #           K, M, G, T (decimal)
+                                   #    
+                                   # 💡 TIP: Start small, expand later if needed
+                                   #    (if allowVolumeExpansion: true in SC)
+
+  # ============================================================
+  # VOLUME MODE - How to expose the volume
+  # ============================================================
+  volumeMode: Filesystem          # 👈 Mount as a filesystem (default)
+                                   #
+                                   # OPTIONS:
+                                   # - Filesystem: Mount as directory (/data)
+                                   #   ✅ Most common, works with all apps
+                                   #
+                                   # - Block: Raw block device (/dev/xvda)
+                                   #   ⚠️  Advanced: For apps that manage own FS
+                                   #   Example: Some databases, custom storage
+
+  # ============================================================
+  # SELECTOR (Optional) - Choose specific PV by labels
+  # ============================================================
+  # Use this for STATIC provisioning to bind to a specific PV
+  # selector:
+  #   matchLabels:
+  #     type: ssd
+  #     environment: production
+
+# ============================================================
+# 📊 AFTER APPLYING, CHECK STATUS:
+# ============================================================
+#
+# $ kubectl get pvc
+# NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS
+# my-ebs-claim   Bound    pvc-abc123-def456-ghi789                   5Gi        RWO            ebs-sc
+#
+# STATUS meanings:
+#   - Pending: Waiting for volume (PV) to be created
+#   - Bound: Successfully connected to a PV ✅
+#   - Lost: The PV was deleted but PVC still exists
+#
+# ============================================================
+# 🔍 TROUBLESHOOTING:
+# ============================================================
+#
+# If PVC stays "Pending", check:
+#   $ kubectl describe pvc my-ebs-claim
+#
+# Common issues:
+#   1. "no persistent volumes available" 
+#      → StorageClass name mismatch or CSI not installed
+#
+#   2. "waiting for first consumer"
+#      → Normal! Volume creates when Pod uses it
+#      → (Because volumeBindingMode: WaitForFirstConsumer)
+#
+# ============================================================

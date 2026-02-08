@@ -1,0 +1,129 @@
+# ============================================================
+# POD WITH PERSISTENT VOLUME - Using Storage in Your App
+# ============================================================
+#
+# 📚 HOW PODS USE STORAGE
+# -----------------------
+# Pods connect to storage through two configurations:
+#   1. volumes: Define WHAT storage is available
+#   2. volumeMounts: Define WHERE to mount it in container
+#
+# Think of it like:
+#   - volumes = "I have a USB drive"
+#   - volumeMounts = "Plug it into /data folder"
+#
+# ============================================================
+
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: storage-test-pod
+  namespace: default
+  labels:
+    app: storage-demo
+    purpose: learning
+
+spec:
+  # ============================================================
+  # VOLUMES - Declare storage sources available to this pod
+  # ============================================================
+  volumes:
+    - name: my-storage              # 👈 Internal name (used in volumeMounts)
+      persistentVolumeClaim:
+        claimName: my-ebs-claim     # 👈 Must match PVC metadata.name
+                                     #    This connects pod to the PVC
+
+    # ---- OTHER VOLUME TYPES (for reference) ----
+    # - name: config-volume
+    #   configMap:
+    #     name: my-config           # Mount ConfigMap as files
+    #
+    # - name: secret-volume
+    #   secret:
+    #     secretName: my-secret     # Mount Secret as files
+    #
+    # - name: empty-volume
+    #   emptyDir: {}                # Temporary storage (deleted with pod)
+
+  containers:
+    - name: app
+      image: busybox:1.36           # 👈 Simple image for testing
+      
+      # ============================================================
+      # COMMAND - Write test data to prove persistence
+      # ============================================================
+      command:
+        - /bin/sh
+        - -c
+        - |
+          # Write timestamp to prove data persists across pod restarts
+          echo "=== Storage Test ===" >> /data/testfile.txt
+          echo "Pod started at: $(date)" >> /data/testfile.txt
+          echo "Hostname: $(hostname)" >> /data/testfile.txt
+          echo "===================" >> /data/testfile.txt
+          echo ""
+          echo "✅ Data written to /data/testfile.txt"
+          echo "📁 Contents:"
+          cat /data/testfile.txt
+          echo ""
+          echo "💤 Sleeping to keep pod running..."
+          sleep 3600
+
+      # ============================================================
+      # VOLUME MOUNTS - Where to attach storage in container
+      # ============================================================
+      volumeMounts:
+        - name: my-storage          # 👈 Must match volumes[].name above
+          mountPath: /data          # 👈 Path inside container
+                                     #    Your app reads/writes to /data
+                                     #    This folder = the EBS volume
+
+          # ---- OPTIONAL SETTINGS ----
+          # subPath: subfolder      # 👈 Mount only a subdirectory of volume
+          # readOnly: true          # 👈 Mount as read-only
+
+      # ============================================================
+      # RESOURCES - Good practice to set limits
+      # ============================================================
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "128Mi"
+          cpu: "100m"
+
+  # ============================================================
+  # RESTART POLICY
+  # ============================================================
+  restartPolicy: Always             # 👈 Restart if container crashes
+
+# ============================================================
+# 🧪 TESTING PERSISTENCE:
+# ============================================================
+#
+# Step 1: Apply and check pod
+#   $ kubectl apply -f 03-pod-with-pvc.yaml
+#   $ kubectl get pods
+#   $ kubectl logs storage-test-pod
+#
+# Step 2: Check the data
+#   $ kubectl exec -it storage-test-pod -- cat /data/testfile.txt
+#
+# Step 3: Delete the pod (data should survive!)
+#   $ kubectl delete pod storage-test-pod
+#
+# Step 4: Recreate the pod
+#   $ kubectl apply -f 03-pod-with-pvc.yaml
+#
+# Step 5: Check data again - old data should still be there!
+#   $ kubectl exec -it storage-test-pod -- cat /data/testfile.txt
+#   (You should see MULTIPLE entries - one from each pod start)
+#
+# ============================================================
+# 
+# 🎉 If old data persists after pod deletion = SUCCESS!
+#    Your storage is truly persistent!
+#
+# ============================================================

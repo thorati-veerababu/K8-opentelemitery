@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods-global
+  namespace: rbac-demo
+subjects:
+# You can specify more than one "subject"
+- kind: ServiceAccount
+  name: dev-user # "name" is case sensitive
+  namespace: rbac-demo
+roleRef:
+  # "roleRef" specifies the binding to a Role / ClusterRole
+  kind: Role
+  name: pod-reader # this must match the name of the Role
+  apiGroup: rbac.authorization.k8s.io

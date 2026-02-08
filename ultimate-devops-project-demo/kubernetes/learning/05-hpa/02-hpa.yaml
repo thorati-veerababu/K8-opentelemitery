@@ -1,0 +1,45 @@
+# ============================================================
+# HORIZONTAL POD AUTOSCALER
+# ============================================================
+#
+# 📚 RULES:
+# - Target CPU: 50%
+# - Min Replicas: 1
+# - Max Replicas: 10
+#
+# If (Current CPU Utilization > 50%), HPA adds pods.
+# If (Current CPU Utilization < 50%), HPA removes pods.
+#
+# ============================================================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: php-apache-hpa
+
+spec:
+  # ============================================================
+  # TARGET REFERENCE - What to scale?
+  # ============================================================
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: php-apache
+
+  # ============================================================
+  # BOUNDARIES - Safety limits
+  # ============================================================
+  minReplicas: 1
+  maxReplicas: 10
+
+  # ============================================================
+  # METRICS - When to scale?
+  # ============================================================
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50   # 👈 Target 50% CPU usage

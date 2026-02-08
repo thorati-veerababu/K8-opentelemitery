@@ -1,0 +1,66 @@
+# ============================================================
+# EFS STORAGECLASS - For Shared File Storage
+# ============================================================
+#
+# 📚 EFS vs EBS StorageClass Differences:
+# 
+# EBS:
+#   - provisioner: ebs.csi.aws.com
+#   - Creates new EBS volume per PVC
+#   - AccessMode: ReadWriteOnce (RWO)
+#
+# EFS:
+#   - provisioner: efs.csi.aws.com
+#   - Uses existing EFS file system
+#   - AccessMode: ReadWriteMany (RWX) ← Multiple pods!
+#
+# ============================================================
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+
+metadata:
+  name: efs-sc
+
+# ============================================================
+# PROVISIONER - EFS CSI Driver
+# ============================================================
+provisioner: efs.csi.aws.com
+
+# ============================================================
+# PARAMETERS - EFS-specific settings
+# ============================================================
+parameters:
+  # ---- REQUIRED: Your EFS File System ID ----
+  fileSystemId: fs-0492e0766e16f954f  # 👈 Your EFS ID!
+                                       #    Get it from: aws efs describe-file-systems
+  
+  # ---- Directory permissions ----
+  directoryPerms: "755"                # 👈 Default permissions for created dirs
+  
+  # ---- Provisioning mode ----
+  provisioningMode: efs-ap             # 👈 "efs-ap" = Create access point per PVC
+                                       #    This isolates each PVC in its own directory
+
+  # ---- Base path (optional) ----
+  basePath: "/dynamic_provisioning"    # 👈 All PVCs created under this path
+
+  # ---- GID/UID for access point (optional) ----
+  # gidRangeStart: "1000"
+  # gidRangeEnd: "2000"
+
+# ============================================================
+# 📝 DIFFERENCE FROM EBS:
+# ============================================================
+#
+# EBS StorageClass:
+#   - Creates NEW volume per PVC
+#   - Each PVC = new EBS disk
+#   - volumeBindingMode matters (WaitForFirstConsumer)
+#
+# EFS StorageClass:
+#   - Uses EXISTING file system
+#   - Each PVC = new Access Point (directory)
+#   - No volumeBindingMode needed (EFS is network storage)
+#
+# ============================================================

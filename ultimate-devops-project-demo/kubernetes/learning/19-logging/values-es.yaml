@@ -1,0 +1,25 @@
+# Project-Grade Elasticsearch Configuration
+# ⚠️ Single-node for cost efficiency, but with Persistence.
+
+replicas: 1
+minimumMasterNodes: 1
+
+# Resource Limits
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+# Java Heap (50% of memory limit)
+esJavaOpts: "-Xmx1g -Xms1g"
+
+# Persistent Storage
+volumeClaimTemplate:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: "gp2"
+  resources:
+    requests:
+      storage: 10Gi

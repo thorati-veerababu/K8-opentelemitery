@@ -1,0 +1,118 @@
+# ============================================================
+# STATEFULSET - Basic Example
+# ============================================================
+#
+# 📚 KEY DIFFERENCES FROM DEPLOYMENT:
+#
+# 1. Pod names are ORDERED: web-0, web-1, web-2
+# 2. Pods start in ORDER: web-0 first, then web-1, then web-2
+# 3. Each pod can have its OWN storage (volumeClaimTemplates)
+# 4. Requires a HEADLESS SERVICE for DNS
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: StatefulSet
+
+metadata:
+  name: web
+  labels:
+    app: web
+
+spec:
+  # ============================================================
+  # SERVICE NAME - Must match headless service!
+  # ============================================================
+  serviceName: "web-headless"      # 👈 REQUIRED! Must match Service name
+                                    #    This creates DNS names like:
+                                    #    web-0.web-headless.default.svc.cluster.local
+
+  # ============================================================
+  # REPLICAS
+  # ============================================================
+  replicas: 3                      # 👈 Creates web-0, web-1, web-2
+
+  # ============================================================
+  # SELECTOR - Same as Deployment
+  # ============================================================
+  selector:
+    matchLabels:
+      app: web
+
+  # ============================================================
+  # POD TEMPLATE
+  # ============================================================
+  template:
+    metadata:
+      labels:
+        app: web                   # 👈 Must match selector.matchLabels
+    
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          
+          ports:
+            - containerPort: 80
+              name: http
+
+          # Show pod identity
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "I am $(hostname)" > /usr/share/nginx/html/index.html
+              nginx -g "daemon off;"
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+  # ============================================================
+  # POD MANAGEMENT POLICY
+  # ============================================================
+  podManagementPolicy: OrderedReady
+  # 👆 OPTIONS:
+  #    - OrderedReady (default): Start pods 0→1→2, stop 2→1→0
+  #    - Parallel: Start all pods at once (faster but less safe)
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply headless service first:
+#    kubectl apply -f 01-headless-service.yaml
+#
+# 2. Apply this StatefulSet:
+#    kubectl apply -f 02-statefulset-basic.yaml
+#
+# 3. Watch pods start IN ORDER:
+#    kubectl get pods -l app=web -w
+#
+# 4. Check pod names (web-0, web-1, web-2):
+#    kubectl get pods -l app=web
+#
+# 5. Test each pod directly:
+#    kubectl exec web-0 -- wget -qO- localhost
+#    kubectl exec web-1 -- wget -qO- localhost
+#    kubectl exec web-2 -- wget -qO- localhost
+#
+# 6. Test DNS names:
+#    kubectl run -it --rm dns-test --image=busybox --restart=Never -- \
+#      wget -qO- web-0.web-headless
+#
+# ============================================================
+#
+# 📊 SCALING:
+#
+# Scale up:  web-2 created, then web-3, then web-4...
+# Scale down: web-4 deleted first, then web-3, then web-2...
+#
+# kubectl scale statefulset web --replicas=5
+# kubectl scale statefulset web --replicas=2
+#
+# ============================================================

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-reader-app
+  namespace: rbac-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pod-reader
+  template:
+    metadata:
+      labels:
+        app: pod-reader
+    spec:
+      serviceAccountName: dev-user  # <--- THIS IS THE KEY LINE!
+      containers:
+      - name: ubuntu
+        image: ubuntu
+        command: ["sleep", "3600"]
+        # Now this container runs with the "dev-user" permissions!

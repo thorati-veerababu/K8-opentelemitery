@@ -1,0 +1,104 @@
+# ============================================================
+# STORAGECLASS - Template for Dynamic Volume Provisioning
+# ============================================================
+#
+# 📚 WHAT IS A STORAGECLASS?
+# --------------------------
+# A StorageClass is like a "blueprint" or "template" that tells Kubernetes:
+#   - WHAT type of storage to create (SSD, HDD, etc.)
+#   - HOW to create it (which provisioner/driver to use)
+#   - WHERE to create it (which AWS region/zone)
+#
+# Without StorageClass, you'd have to manually create each PV (Persistent Volume)
+# With StorageClass, Kubernetes automatically creates PVs when you request them!
+#
+# 🔄 FLOW:
+#   PVC requests storage → Kubernetes checks StorageClass → 
+#   CSI Driver creates EBS volume → PV is created → PVC binds to PV
+#
+# ============================================================
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+
+metadata:
+  name: ebs-sc                    # 👈 Name used by PVCs to request this class
+  annotations:
+    # Make this the default StorageClass (optional)
+    # storageclass.kubernetes.io/is-default-class: "true"
+
+# ============================================================
+# PROVISIONER - The "driver" that creates actual storage
+# ============================================================
+provisioner: ebs.csi.aws.com      # 👈 AWS EBS CSI Driver
+                                   #    This MUST be installed on your cluster
+                                   #    Other examples:
+                                   #    - efs.csi.aws.com (AWS EFS)
+                                   #    - kubernetes.io/aws-ebs (old, deprecated)
+                                   #    - pd.csi.storage.gke.io (GCP)
+                                   #    - disk.csi.azure.com (Azure)
+
+# ============================================================
+# VOLUME BINDING MODE - When to create the actual volume
+# ============================================================
+volumeBindingMode: WaitForFirstConsumer
+# 👆 OPTIONS:
+#    - WaitForFirstConsumer: Create volume only when a Pod needs it
+#                            ✅ RECOMMENDED - Ensures volume is in same AZ as Pod
+#    - Immediate: Create volume right away when PVC is created
+#                 ⚠️  May cause AZ mismatch issues
+
+# ============================================================
+# RECLAIM POLICY - What happens when PVC is deleted
+# ============================================================
+reclaimPolicy: Delete
+# 👆 OPTIONS:
+#    - Delete:  EBS volume is DELETED when PVC is deleted (default)
+#               ✅ Good for dev/test - no orphan volumes
+#    - Retain:  EBS volume is KEPT even after PVC deletion
+#               ✅ Good for production - manual cleanup needed
+
+# ============================================================
+# ALLOW VOLUME EXPANSION - Can PVC size be increased later?
+# ============================================================
+allowVolumeExpansion: true
+# 👆 If true, you can edit PVC to increase size (but NOT decrease!)
+#    Example: kubectl edit pvc my-pvc  → change 5Gi to 10Gi
+
+# ============================================================
+# PARAMETERS - Specific settings for the provisioner
+# ============================================================
+parameters:
+  # ---- EBS Volume Type ----
+  type: gp3                       # 👈 Volume type
+                                   #    Options: gp3, gp2, io1, io2, st1, sc1
+                                   #    gp3 = General Purpose SSD (recommended)
+                                   #    io1/io2 = High IOPS for databases
+                                   #    st1 = Throughput optimized HDD
+                                   #    sc1 = Cold HDD (cheapest)
+
+  # ---- Encryption ----
+  encrypted: "true"               # 👈 Encrypt volume at rest
+                                   #    Always encrypt in production!
+
+  # ---- File System Type ----
+  fsType: ext4                    # 👈 File system to format the volume
+                                   #    Options: ext4, xfs
+                                   #    ext4 = Most compatible
+                                   #    xfs = Better for large files
+
+  # ---- IOPS (only for io1, io2, gp3) ----
+  # iops: "3000"                  # 👈 Provisioned IOPS (optional for gp3)
+  
+  # ---- Throughput (only for gp3) ----
+  # throughput: "125"             # 👈 MB/s throughput (optional)
+
+# ============================================================
+# 📝 EXAMPLE USE CASES:
+# ============================================================
+#
+# 1. Development:     gp3, Delete, no encryption
+# 2. Production DB:   io2, Retain, encrypted
+# 3. Logs/Archives:   st1, Delete, encrypted
+#
+# ============================================================

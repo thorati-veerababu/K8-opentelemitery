@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-pod
+  labels:
+    type: insecure
+spec:
+  containers:
+  - name: heavy-app
+    image: ubuntu
+    command: ["sleep", "3600"]
+    # ❌ NO SecurityContext!
+    # By default, this runs as ROOT (UID 0)
+    # It can write anywhere in the filesystem.
+    # It has default Linux capabilities.

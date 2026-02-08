@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  # 🎯 DYNAMIC VALUE: Uses 'replicaCount' from values.yaml
+  replicas: {{ .Values.replicaCount }}
+  
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          # 🎯 DYNAMIC IMAGE: Combines repo + tag
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          
+          env:
+            - name: MY_ENV
+              value: {{ .Values.env.ENVIRONMENT }}

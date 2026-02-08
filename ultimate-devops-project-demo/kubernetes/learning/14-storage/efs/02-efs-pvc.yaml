@@ -1,0 +1,76 @@
+# ============================================================
+# EFS PERSISTENT VOLUME CLAIM
+# ============================================================
+#
+# 📚 KEY DIFFERENCE: AccessMode!
+#
+# EBS PVC:
+#   accessModes: [ReadWriteOnce]     ← Only ONE node
+#
+# EFS PVC:
+#   accessModes: [ReadWriteMany]     ← MANY nodes! ✅
+#
+# ============================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: efs-claim
+  labels:
+    app: efs-demo
+    type: shared-storage
+
+spec:
+  # ============================================================
+  # ACCESS MODES - The key feature of EFS!
+  # ============================================================
+  accessModes:
+    - ReadWriteMany                   # 👈 RWX = Multiple pods can read/write!
+                                       #
+                                       # Comparison:
+                                       # ┌─────────────────────────────────────┐
+                                       # │ ReadWriteOnce (RWO) - EBS          │
+                                       # │   → 1 node can mount               │
+                                       # │   → Good for databases             │
+                                       # │                                    │
+                                       # │ ReadWriteMany (RWX) - EFS          │
+                                       # │   → Many nodes can mount           │
+                                       # │   → Good for shared files          │
+                                       # └─────────────────────────────────────┘
+
+  # ============================================================
+  # STORAGE CLASS
+  # ============================================================
+  storageClassName: efs-sc            # 👈 References our EFS StorageClass
+
+  # ============================================================
+  # RESOURCES - Storage request
+  # ============================================================
+  resources:
+    requests:
+      storage: 5Gi                    # 👈 For EFS, this is informational
+                                       #    EFS doesn't pre-allocate space
+                                       #    You only pay for what you use!
+                                       #
+                                       # EBS charges for: 5Gi provisioned
+                                       # EFS charges for: actual bytes used
+
+# ============================================================
+# 💰 COST COMPARISON (ap-south-1 region):
+# ============================================================
+#
+# EBS gp3 100GB: ~$8/month (pay for provisioned)
+# EFS 100GB:     ~$30/month (pay for used, but higher per-GB)
+#
+# Use EFS when:
+#   ✅ Multiple pods need same data
+#   ✅ Data needs to survive node failures
+#   ✅ Cross-AZ access required
+#
+# Use EBS when:
+#   ✅ Single pod access
+#   ✅ High IOPS needed (databases)
+#   ✅ Cost optimization
+#
+# ============================================================

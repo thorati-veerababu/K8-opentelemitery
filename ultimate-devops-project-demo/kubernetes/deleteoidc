@@ -1,0 +1,47 @@
+LIVE_OIDC_IDS=$(aws eks list-clusters --region ap-south-1 \
+  | jq -r '.clusters[]' \
+  | xargs -I {} aws eks describe-cluster --name {} --region ap-south-1 \
+  | jq -r '.cluster.identity.oidc.issuer' \
+  | awk -F/ '{print $NF}')
+
+aws iam list-open-id-connect-providers \
+| jq -r '.OpenIDConnectProviderList[].Arn' \
+| while read arn; do
+    oidc_id=$(echo $arn | awk -F/ '{print $NF}')
+
+    if echo "$LIVE_OIDC_IDS" | grep -q "$oidc_id"; then
+      echo "Skipping active OIDC: $oidc_id"
+      continue
+    fi
+
+    echo "Processing unused OIDC: $oidc_id"
+
+    # Find roles using this OIDC
+    roles=$(aws iam list-roles | jq -r --arg OIDC "$oidc_id" '
+      .Roles[]
+      | select(.AssumeRolePolicyDocument.Statement[].Principal.Federated?
+        | contains($OIDC))
+      | .RoleName
+    ')
+
+    for role in $roles; do
+      echo "Deleting role: $role"
+
+      aws iam list-attached-role-policies --role-name "$role" \
+      | jq -r '.AttachedPolicies[].PolicyArn' \
+      | while read policy; do
+          aws iam detach-role-policy --role-name "$role" --policy-arn "$policy"
+        done
+
+      aws iam list-role-policies --role-name "$role" \
+      | jq -r '.PolicyNames[]' \
+      | while read policy; do
+          aws iam delete-role-policy --role-name "$role" --policy-name "$policy"
+        done
+
+      aws iam delete-role --role-name "$role"
+    done
+
+    aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "$arn"
+  done
+

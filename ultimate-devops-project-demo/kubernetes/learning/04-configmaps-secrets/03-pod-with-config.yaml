@@ -1,0 +1,83 @@
+# ============================================================
+# POD USING CONFIGMAP & SECRET
+# ============================================================
+#
+# 📚 DEMONSTRATES:
+# 1. envFrom: Inject ALL configmap values as env vars
+# 2. valueFrom: Inject SINGLE secret value
+# 3. volumeMounts: Mount config file into container
+#
+# ============================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: config-demo
+  labels:
+    app: game-demo
+spec:
+  containers:
+    - name: game
+      image: busybox
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== CONFIGURATION DEMO ==="
+          echo "1. Checking Environment Variables:"
+          echo "   Initial Lives: $PLAYER_INITIAL_LIVES"
+          echo "   DB Password: $DB_PASSWORD"
+          echo ""
+          echo "2. Checking Mounted Config File (/config/game.properties):"
+          cat /config/game.properties
+          echo ""
+          echo "Sleeping..."
+          sleep 3600
+
+      # ============================================================
+      # 1. ENVIRONMENT VARIABLES
+      # ============================================================
+      env:
+        # Option A: Map ONE key to ONE env var
+        # (Renaming key to Env Var format)
+        - name: PLAYER_INITIAL_LIVES
+          valueFrom:
+            configMapKeyRef:
+              name: game-config
+              key: player_initial_lives
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: game-secret
+              key: password
+
+      # ============================================================
+      # 2. MOUNT CONFIG FILE
+      # ============================================================
+      volumeMounts:
+        - name: config-volume
+          mountPath: /config       # 👈 File appears at /config/game.properties
+          readOnly: true
+
+  volumes:
+    - name: config-volume
+      configMap:
+        name: game-config          # 👈 Source is ConfigMap
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply:
+#    kubectl apply -f 01-configmap.yaml
+#    kubectl apply -f 02-secret.yaml
+#    kubectl apply -f 03-pod-with-config.yaml
+#
+# 2. Check Env Vars:
+#    kubectl exec config-demo -- env | grep PLAYER
+#
+# 3. Check Mounted File:
+#    kubectl exec config-demo -- cat /config/game.properties
+#
+# ============================================================

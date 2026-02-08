@@ -1,0 +1,102 @@
+controller:
+  # Use LTS version
+  image:
+    repository: "jenkins/jenkins"
+    tag: "lts"
+
+  # Serve from /jenkins
+  jenkinsOpts: "--prefix=/jenkins"
+  
+  # Admin User
+  admin:
+    username: "admin"
+    password: "admin" # In production, use a Secret!
+
+  # Request/Limit resources
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1024Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2048Mi"
+
+  # Service Type
+  serviceType: ClusterIP
+
+  # Enable the agent listener service for inbound agent traffic
+  agentListenerService:
+      enabled: true
+
+  # Pre-install essential plugins
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - job-dsl
+
+  # JCasC: Define the Test Job automatically
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      scale-job: |
+        jobs:
+          - script: >
+              pipelineJob('k8s-scale-test') {
+                definition {
+                  cps {
+                    script('''
+                      pipeline {
+                        agent {
+                          kubernetes {
+                            yaml """
+                              apiVersion: v1
+                              kind: Pod
+                              spec:
+                                containers:
+                                - name: shell
+                                  image: alpine
+                                  command: ['sleep', '60']
+                            """
+                          }
+                        }
+                        stages {
+                          stage('Work') {
+                            steps {
+                              echo 'Spinning up a pod...'
+                              sh 'hostname'
+                              sh 'sleep 30'
+                            }
+                          }
+                        }
+                      }
+                    ''')
+                  }
+                }
+              }
+
+serviceAccount:
+  create: true
+  name: jenkins
+  annotations: {}
+
+# Agent Configuration (The "Worker")
+agent:
+  enabled: true
+  image:
+    repository: "jenkins/inbound-agent"
+    tag: "latest"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1024Mi"
+
+persistence:
+  enabled: true
+  storageClass: "gp2"
+  accessMode: "ReadWriteOnce"
+  size: "10Gi"

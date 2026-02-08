@@ -1,0 +1,20 @@
+# Project-Grade Kibana Configuration
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+service:
+  type: ClusterIP
+
+extraEnvs:
+  - name: SERVER_BASEPATH
+    value: "/kibana"
+  - name: SERVER_REWRITEBASEPATH
+    value: "true"
+  - name: SERVER_PUBLICBASEURL
+    value: "http://aaa00ffeddfbe4767a53c0a5687294ee-890124508.ap-south-1.elb.amazonaws.com/kibana"

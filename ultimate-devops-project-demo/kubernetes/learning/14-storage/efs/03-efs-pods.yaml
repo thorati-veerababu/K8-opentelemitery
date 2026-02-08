@@ -1,0 +1,118 @@
+# ============================================================
+# MULTIPLE PODS SHARING EFS STORAGE
+# ============================================================
+#
+# 📚 This demonstrates ReadWriteMany (RWX):
+#    - Pod 1 (Writer): Writes data to shared storage
+#    - Pod 2 (Reader): Reads data from same storage
+#    - Both pods access the SAME files simultaneously!
+#
+# This is IMPOSSIBLE with EBS (RWO only)!
+#
+# ============================================================
+
+---
+# ============================================================
+# POD 1: WRITER
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: efs-writer
+  labels:
+    app: efs-demo
+    role: writer
+spec:
+  containers:
+    - name: writer
+      image: busybox
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== EFS Writer Pod ==="
+          echo "Writing to shared storage every 10 seconds..."
+          while true; do
+            TIMESTAMP=$(date)
+            echo "[$TIMESTAMP] Written by efs-writer pod" >> /shared/log.txt
+            echo "Wrote: $TIMESTAMP"
+            sleep 10
+          done
+      
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared            # 👈 Mounted at /shared
+  
+  volumes:
+    - name: shared-storage
+      persistentVolumeClaim:
+        claimName: efs-claim            # 👈 Uses the EFS PVC
+
+---
+# ============================================================
+# POD 2: READER
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: efs-reader
+  labels:
+    app: efs-demo
+    role: reader
+spec:
+  containers:
+    - name: reader
+      image: busybox
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== EFS Reader Pod ==="
+          echo "Reading from shared storage every 5 seconds..."
+          sleep 15  # Wait for writer to create file
+          while true; do
+            echo "--- Current log contents ---"
+            cat /shared/log.txt
+            echo "--- End of log ---"
+            echo ""
+            sleep 5
+          done
+      
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /shared            # 👈 Same mount path
+  
+  volumes:
+    - name: shared-storage
+      persistentVolumeClaim:
+        claimName: efs-claim            # 👈 Same PVC!
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply all resources:
+#    kubectl apply -f 01-efs-storageclass.yaml
+#    kubectl apply -f 02-efs-pvc.yaml
+#    kubectl apply -f 03-efs-pods.yaml
+#
+# 2. Check both pods are running:
+#    kubectl get pods -l app=efs-demo
+#
+# 3. Watch writer logs:
+#    kubectl logs efs-writer -f
+#
+# 4. Watch reader logs (sees what writer wrote!):
+#    kubectl logs efs-reader -f
+#
+# 5. Exec into reader and check file:
+#    kubectl exec efs-reader -- cat /shared/log.txt
+#
+# ============================================================
+# 
+# 🎯 SUCCESS CRITERIA:
+#    - efs-reader can see lines written by efs-writer
+#    - Both pods are on DIFFERENT nodes (check with -o wide)
+#    - Data is shared in real-time!
+#
+# ============================================================

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-pod
+  labels:
+    type: secure
+spec:
+  securityContext:
+    runAsUser: 1000   # ✅ Run as user ID 1000 (not root)
+    runAsGroup: 3000  # ✅ Run as group ID 3000
+    fsGroup: 2000     # ✅ File system group ID
+
+  containers:
+  - name: secure-app
+    image: ubuntu
+    command: ["sleep", "3600"]
+    securityContext:
+      allowPrivilegeEscalation: false # ✅ Cannot become root later
+      readOnlyRootFilesystem: true    # ✅ Cannot write to disk! (Protects against downloading malware)
+      capabilities:
+        drop: ["ALL"]                 # ✅ Remove ALL Linux powers (Ping, Time change, etc.)
+    
+    # Since filesystem is Read-Only, we MUST mount a volume if we want to write logs/temp files
+    volumeMounts:
+    - name: tmp-volume
+      mountPath: /tmp
+  
+  volumes:
+  - name: tmp-volume
+    emptyDir: {}

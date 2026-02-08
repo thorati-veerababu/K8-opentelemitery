@@ -1,0 +1,78 @@
+# ============================================================
+# CRONJOB - Scheduled Tasks
+# ============================================================
+#
+# 📚 SYNTAX:
+# Based on standard Unix cron:
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of the month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+# │ │ │ │ │
+# * * * * *
+#
+# Examples:
+# "*/1 * * * *"  -> Every minute
+# "0 0 * * *"    -> Daily at midnight
+# "0 9 * * 1"    -> Every Monday at 9am
+#
+# ============================================================
+
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: hello-cron
+  labels:
+    app: hello
+
+spec:
+  # ============================================================
+  # SCHEDULE - Run every minute
+  # ============================================================
+  schedule: "*/1 * * * *"          # 👈 Every minute
+
+  # ============================================================
+  # HISTORY LIMITS - Keep cluster clean
+  # ============================================================
+  successfulJobsHistoryLimit: 3    # 👈 Keep last 3 successful jobs
+  failedJobsHistoryLimit: 1        # 👈 Keep last 1 failed job
+
+  # ============================================================
+  # JOB TEMPLATE - Standard Job Spec
+  # ============================================================
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: hello
+              image: busybox
+              command:
+                - /bin/sh
+                - -c
+                - echo "Hello from CronJob! Time is $(date)"
+          
+          restartPolicy: OnFailure
+
+# ============================================================
+# 🧪 TEST COMMANDS:
+# ============================================================
+#
+# 1. Apply:
+#    kubectl apply -f 03-cronjob.yaml
+#
+# 2. Verify CronJob exists:
+#    kubectl get cronjob
+#
+# 3. Wait 1-2 minutes and see Jobs appearing:
+#    kubectl get jobs --watch
+#
+# 4. Check logs of latest pod:
+#    kubectl logs -l job-name=<job-name>
+#
+# 5. Suspend the CronJob (pause it):
+#    kubectl patch cronjob hello-cron -p '{"spec":{"suspend":true}}'
+#
+# ============================================================

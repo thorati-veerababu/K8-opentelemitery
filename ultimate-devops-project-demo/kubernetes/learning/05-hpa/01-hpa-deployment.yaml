@@ -1,0 +1,63 @@
+# ============================================================
+# DEPLOYMENT TO SCALE
+# ============================================================
+#
+# A custom PHP image that performs CPU-intensive work 
+# on every request to simulate load.
+#
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: php-apache
+  labels:
+    app: php-apache
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-apache
+
+  template:
+    metadata:
+      labels:
+        app: php-apache
+    
+    spec:
+      containers:
+        - name: php-apache
+          # Special image for HPA testing (calculates roughly 1000000 sqrt)
+          image: registry.k8s.io/hpa-example
+          
+          resources:
+            # ============================================================
+            # ⚠️ CRITICAL FOR HPA!
+            # You MUST define cpu requests. HPA calculates percentage
+            # based on this request.
+            # ============================================================
+            requests:
+              cpu: 200m            # 200 millicores (0.2 CPU)
+            limits:
+              cpu: 500m
+
+          ports:
+            - containerPort: 80
+
+---
+# ============================================================
+# SERVICE - Expose the deployment
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-apache
+  labels:
+    app: php-apache
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: php-apache

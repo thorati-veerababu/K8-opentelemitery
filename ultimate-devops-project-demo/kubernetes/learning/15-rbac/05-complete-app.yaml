@@ -1,0 +1,65 @@
+# ===========================
+# 1. The ID Card (ServiceAccount)
+# ===========================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dev-user
+  namespace: rbac-demo
+
+---
+# ===========================
+# 2. The Permissions (Role)
+# ===========================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: rbac-demo
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+# ===========================
+# 3. Giving the Card to the User (RoleBinding)
+# ===========================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods-global
+  namespace: rbac-demo
+subjects:
+- kind: ServiceAccount
+  name: dev-user
+  namespace: rbac-demo
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ===========================
+# 4. The App Using the Card (Deployment)
+# ===========================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-reader-app
+  namespace: rbac-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pod-reader
+  template:
+    metadata:
+      labels:
+        app: pod-reader
+    spec:
+      serviceAccountName: dev-user
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest  # <--- CHANGED IMAGE TO INCLUDE KUBECTL
+        command: ["sleep", "3600"]
